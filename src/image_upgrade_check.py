@@ -15,6 +15,8 @@ def get_all_images(kube_context):
                          capture_output=True, text=True, check=True)
 
     images = [i.replace("'", "") for i in cmd.stdout.split(' ')]
+
+    #TODO Remove dups
     return images
 
 def build_image_dicts(images):
@@ -33,7 +35,8 @@ def build_image_dicts(images):
         image_dict = {
             "registry": registry,
             "image_name": image_name,
-            "tag": tag
+            "tag": tag,
+            "updates": []
         }
         
         image_dicts.append(image_dict)
@@ -55,6 +58,6 @@ if __name__ == "__main__":
 
     kube_context = args.kube_context or get_current_context()
     
-    images = build_image_dicts(get_all_images(kube_context))
+    images = build_image_dicts(set(get_all_images(kube_context)))
 
     print(json.dumps(images))
