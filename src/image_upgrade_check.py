@@ -107,5 +107,5 @@ if __name__ == "__main__":
 
         image_dicts = build_image_dicts(images, registries)
 
-        with open('image_updrades.json', "w") as out_file:
+        with open('image_upgrades.json', "w") as out_file:
             json.dump(image_dicts, out_file, indent = 2)
