@@ -16,25 +16,37 @@ def get_all_images(kube_context):
 
     return unique_images
 
-def get_auth_token(registry_auth_url, image_name):
+def get_quay_tag_list(image_name, tag):
+    page = 1
+    has_additional = True
+    updated_tags = []
 
-    r = requests.get('{}{}:pull'.format(registry_auth_url, image_name))
+    while has_additional:
+        r = requests.get('https://quay.io/api/v1/repository/{}/tag?page={}'.format(image_name, page))
 
-    token = r.json()['token']
-    return token
+        for t in r.json()['tags']:
+            if tag == t['name']:
+                break
+            else:
+                updated_tags.append(t['name'])
+                
+        has_additional = r.json()['has_additional']
+        page += 1
 
-def get_tag_list(registry_index_url, image_name, auth_token):
-    h = {'Authorization': "Bearer {}".format(auth_token)}
-    r = requests.get('{}{}/tags/list'.format(registry_index_url, image_name),
+    updated_tags = list(dict.fromkeys(updated_tags))
+    return updated_tags
+
+def get_docker_tag_list(image_name, tag):
+    r = requests.get('https://auth.docker.io/token?service=registry.docker.io&scope=repository:{}:pull'.format(image_name))
+    auth_token = r.json()['token']
+    
+    r = requests.get('https://index.docker.io/v2/{}/tags/list'.format(image_name),
                     headers={'Authorization': "Bearer {}".format(auth_token)})
-    return r.json()
 
-def filter_tag_list(tag_list, tag):
-    newer_tags = None
-    tags = list(dict.fromkeys(tag_list['tags']))
+    tags = list(dict.fromkeys(r.json()['tags']))
 
     try:
-        index = int(tags.index(tag))
+        index = int(tags.index(tag)) + 1
         newer_tags = tags[index:]
     except ValueError:
         print(f'Warning: {tag_list["name"]} - Cannot filter for newer tags as current tag \"{tag}\" was not found in tag list. All tags will be listed.')
@@ -42,14 +54,22 @@ def filter_tag_list(tag_list, tag):
     
     return newer_tags
 
-def build_updated_tags_lists(registry_auth_url, registry_index_url, image_name, tag):
-    auth_token = get_auth_token(registry_auth_url, image_name)
-    tag_list = get_tag_list(registry_index_url, image_name, auth_token)
-    updated_tags = filter_tag_list(tag_list, tag)
+    return r.json()
 
+def build_updated_tags_lists(registry, image_name, tag):
+    updated_tags = False
+
+    match registry:
+        case "docker.io":
+            updated_tags = get_docker_tag_list(image_name, tag)
+        case "quay.io":
+            updated_tags = get_quay_tag_list(image_name, tag)
+        case _:
+            print(f'Warning: Registry: {registry} is not currently supported. Skipping tag update check for image: {image_name}')
+    
     return updated_tags
     
-def build_image_dicts(images, registries):
+def build_image_dicts(images):
     image_dicts = []
 
     for image in images:
@@ -62,16 +82,7 @@ def build_image_dicts(images, registries):
         else:
             registry = 'docker.io'
 
-        updated_tags = []
-        try:
-            if registries[registry]:
-                registry_auth_url = registries[registry]['auth_url']
-                registry_index_url = registries[registry]['index_url']
-
-                updated_tags = build_updated_tags_lists(registry_auth_url, registry_index_url, image_name, tag)
-        except KeyError:
-            print(f'Warning: No entry for \"{registry}\" in registries.json. Skipping tag update check for image: {image_name}')
-            updated_tags = False
+        updated_tags = build_updated_tags_lists(registry, image_name, tag)
 
         image_dict = {
             "registry": registry,
@@ -102,10 +113,7 @@ if __name__ == "__main__":
     
     images = get_all_images(kube_context)
 
-    with open('registries.json') as registries_file:
-        registries = json.load(registries_file)
+    image_dicts = build_image_dicts(images)
 
-        image_dicts = build_image_dicts(images, registries)
-
-        with open('image_updrades.json', "w") as out_file:
-            json.dump(image_dicts, out_file, indent = 2)
+    with open('image_upgrades.json', "w") as out_file:
+        json.dump(image_dicts, out_file, indent = 2)
