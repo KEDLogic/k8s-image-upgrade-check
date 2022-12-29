@@ -1,6 +1,3 @@
-# 
+# k8s-image-upgrade-check  
 
-##
-
-## CREDITS
-Many thanks to al4 for their work on docker-registry-list, which was incorporated into this repo.
+A script to gather images in use and check for newer versions (Tags). 
