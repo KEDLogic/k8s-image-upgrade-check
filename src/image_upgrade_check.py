@@ -105,7 +105,9 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
 
     p.add_argument('-k', '--kube-context',
-                   help='Context for kubectl. Defaults to current-context if not set')
+                   help='Context for kubectl. Default: current-context')
+    p.add_argument('-o', '--output-file',
+                   help='Output filename. Default: "image_upgrades.json"')
 
     args = p.parse_args()
 
@@ -114,6 +116,7 @@ if __name__ == "__main__":
     images = get_all_images(kube_context)
 
     image_dicts = build_image_dicts(images)
-
-    with open('image_upgrades.json', "w") as out_file:
+    
+    filename = args.output_file or 'image_upgrades.json'
+    with open(filename, "w") as out_file:
         json.dump(image_dicts, out_file, indent = 2)
