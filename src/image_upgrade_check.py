@@ -5,9 +5,11 @@ import re
 import requests
 import subprocess
 
+import pdb  
+
 def get_all_images(kube_context):
     cmd = subprocess.run(["kubectl", f'--context={kube_context}',
-                         "get", "pods", "--all-namespaces",
+                         "get", "all", "--all-namespaces",
                          "--output=jsonpath='{.items[*].status.containerStatuses[*].image}'"],
                          capture_output=True, text=True, check=True)
 
@@ -46,7 +48,27 @@ def get_docker_tag_list(image_name, tag):
     tags = list(dict.fromkeys(r.json()['tags']))
 
     try:
-        index = int(tags.index(tag)) + 1
+        index = int(tags.index(tag)) 
+        newer_tags = tags[index:]
+    except ValueError:
+        print(f'Warning: {tag_list["name"]} - Cannot filter for newer tags as current tag \"{tag}\" was not found in tag list. All tags will be listed.')
+        newer_tags = tags
+    
+    return newer_tags
+
+    return r.json()
+
+def get_public_ecr_aws_tag_list(image_name, tag):
+    r = requests.get('https://public.ecr.aws/token/')
+    auth_token = r.json()['token']
+    
+    r = requests.get('https://public.ecr.aws/v2/{}/tags/list'.format(image_name),
+                    headers={'Authorization': "Bearer {}".format(auth_token)})
+
+    tags = list(dict.fromkeys(r.json()['tags']))
+
+    try:
+        index = int(tags.index(tag))
         newer_tags = tags[index:]
     except ValueError:
         print(f'Warning: {tag_list["name"]} - Cannot filter for newer tags as current tag \"{tag}\" was not found in tag list. All tags will be listed.')
@@ -62,6 +84,8 @@ def build_updated_tags_lists(registry, image_name, tag):
     match registry:
         case "docker.io":
             updated_tags = get_docker_tag_list(image_name, tag)
+        case "public.ecr.aws":
+            updated_tags = get_public_ecr_aws_tag_list(image_name, tag)
         case "quay.io":
             updated_tags = get_quay_tag_list(image_name, tag)
         case _:
