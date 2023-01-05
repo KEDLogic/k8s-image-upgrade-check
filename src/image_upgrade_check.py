@@ -92,8 +92,16 @@ def build_updated_tags_lists(registry, image_name, tag):
             print(f'Warning: Registry: {registry} is not currently supported. Skipping tag update check for image: {image_name}')
     
     return updated_tags
+
+def filter_tags(updated_tags, tag_filter):
     
-def build_image_dicts(images):
+    regex = re.compile(f'{tag_filter}')
+
+    filtered_tags = [tag for tag in updated_tags if not regex.match(tag)]
+
+    return filtered_tags
+
+def build_image_dicts(images, tag_filter=False):
     image_dicts = []
 
     for image in images:
@@ -107,6 +115,9 @@ def build_image_dicts(images):
             registry = 'docker.io'
 
         updated_tags = build_updated_tags_lists(registry, image_name, tag)
+
+        if updated_tags and tag_filter:
+            updated_tags = filter_tags(updated_tags, tag_filter)
 
         image_dict = {
             "registry": registry,
@@ -132,14 +143,17 @@ if __name__ == "__main__":
                    help='Context for kubectl. Default: current-context')
     p.add_argument('-o', '--output-file',
                    help='Output filename. Default: "image_upgrades.json"')
-
+    p.add_argument('-T', '--tag-filter',
+                   help='Regex to exclude tags from updated image results. Tip: use pipes for multiple expressions')
+    
     args = p.parse_args()
 
     kube_context = args.kube_context or get_current_context()
-    
-    images = get_all_images(kube_context)
+    tag_filter = args.tag_filter or False
 
-    image_dicts = build_image_dicts(images)
+    images = get_all_images(kube_context)
+    
+    image_dicts = build_image_dicts(images, tag_filter)
     
     filename = args.output_file or 'image_upgrades.json'
     with open(filename, "w") as out_file:
