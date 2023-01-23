@@ -86,7 +86,7 @@ def build_updated_tags_lists(registry, image_name, tag):
             case _:
                 print(f'[WARN] Registry: {registry} is not currently supported. Skipping tag update check for image: {image_name}')
     except KeyError:
-        print(f'[ERROR] Failed to retrieve tag list for {image_name}. (Could just be a network timeout)')
+        print(f'[ERROR] Failed to retrieve tag list for {image_name}. (Mostly likely a network timeout. Try running the script again or look up the tags manually)')
         return False
 
     return updated_tags
@@ -101,8 +101,11 @@ def filter_tags(updated_tags, tag_filter):
 
 def build_image_dicts(images, tag_filter=False):
     image_dicts = []
-
     for image in images:
+        if re.search("^[mdsha0-9]{3,7}\:[a-f0-9]*$", image):
+            print(f'[WARN] Image {image} is using a direct checksum ref, which is not supported. Image will be omitted from results.')
+            break 
+
         image_name = image.split(':')[0]
         tag = image.split(':')[1]
 
